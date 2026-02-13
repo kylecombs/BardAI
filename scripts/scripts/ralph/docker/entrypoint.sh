@@ -25,9 +25,6 @@ log_error() { echo -e "${RED}[Ralph Docker]${NC} $1"; }
 # Protected branches that Ralph cannot work on
 PROTECTED_BRANCHES="main master develop"
 
-# Allowed remote repository for git push
-ALLOWED_PUSH_REPO="github.com/kylecombs/BardAI"
-
 # Check if current branch is protected
 check_branch_protection() {
     # Check for .git directory (normal repo) or .git file (worktree)
@@ -65,80 +62,7 @@ check_branch_protection() {
     log_success "Branch '$current_branch' is not protected - OK to proceed"
 }
 
-# Set up git push restrictions via pre-push hook
-setup_git_push_restrictions() {
-    log_info "Setting up git push restrictions..."
-
-    local hooks_dir="/workspace/.git/hooks"
-
-    # Handle worktree case where .git is a file pointing to the main repo
-    if [ -f "/workspace/.git" ]; then
-        local gitdir
-        gitdir=$(cat "/workspace/.git" | sed 's/gitdir: //')
-        hooks_dir="$gitdir/hooks"
-    fi
-
-    mkdir -p "$hooks_dir"
-
-    # Create pre-push hook
-    cat > "$hooks_dir/pre-push" << 'HOOK_EOF'
-#!/bin/bash
-#
-# Ralph Git Push Restriction Hook
-# Only allows pushes to the allowed repository and blocks protected branches
-#
-
-ALLOWED_REPO="github.com/kylecombs/BardAI"
-PROTECTED_BRANCHES="main master develop"
-
-# Get the remote URL
-remote="$1"
-url="$2"
-
-# Check if pushing to allowed repository
-if ! echo "$url" | grep -qi "$ALLOWED_REPO"; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🚫 PUSH BLOCKED: Not an allowed repository"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "   Remote URL: $url"
-    echo "   Allowed:    $ALLOWED_REPO"
-    echo ""
-    exit 1
-fi
-
-# Read stdin for ref information
-while read local_ref local_sha remote_ref remote_sha; do
-    # Extract branch name from ref (refs/heads/branch-name -> branch-name)
-    branch_name=$(echo "$remote_ref" | sed 's|refs/heads/||')
-
-    # Check if pushing to a protected branch
-    for protected in $PROTECTED_BRANCHES; do
-        if [ "$branch_name" = "$protected" ]; then
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🚫 PUSH BLOCKED: Cannot push to protected branch '$branch_name'"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            echo "   Protected branches: $PROTECTED_BRANCHES"
-            echo "   Please push to a feature branch instead."
-            echo ""
-            exit 1
-        fi
-    done
-done
-
-exit 0
-HOOK_EOF
-
-    chmod +x "$hooks_dir/pre-push"
-    log_success "Git pre-push hook installed at $hooks_dir/pre-push"
-    log_info "  - Allowed repo: $ALLOWED_PUSH_REPO"
-    log_info "  - Blocked branches: $PROTECTED_BRANCHES"
-}
-
-# Restrict network access to only Claude API and GitHub
+# Restrict network access to only Claude API
 setup_network_restrictions() {
     log_info "Setting up network restrictions..."
 
@@ -180,9 +104,9 @@ setup_network_restrictions() {
     iptables -A OUTPUT -d 192.168.0.0/16 -j ACCEPT
     iptables -A OUTPUT -d 10.0.0.0/8 -j ACCEPT
 
-    # Allow Anthropic API and GitHub (resolve and allow IPs)
+    # Allow Anthropic API (resolve and allow IPs)
     # We allow the domains and let DNS resolution happen
-    for domain in api.anthropic.com anthropic.com claude.ai console.anthropic.com github.com api.github.com; do
+    for domain in api.anthropic.com anthropic.com claude.ai console.anthropic.com; do
         # Resolve domain to IPs and allow them (filter to IPv4 only for iptables)
         local ips
         ips=$(getent ahostsv4 "$domain" 2>/dev/null | awk '{print $1}' | sort -u || true)
@@ -199,7 +123,7 @@ setup_network_restrictions() {
     # Block everything else
     iptables -A OUTPUT -j REJECT --reject-with icmp-net-unreachable
 
-    log_success "Network restricted to Claude API, GitHub, and local services only"
+    log_success "Network restricted to Claude API and local services only"
 }
 
 # Start Xvfb for headless browser testing
@@ -405,10 +329,7 @@ main() {
             # SAFETY: Check we're not on a protected branch
             check_branch_protection
 
-            # SAFETY: Restrict git push to allowed repo and non-protected branches
-            setup_git_push_restrictions
-
-            # SAFETY: Restrict network to Claude API and GitHub only
+            # SAFETY: Restrict network to Claude API only
             setup_network_restrictions
 
             check_auth || do_login
@@ -435,8 +356,7 @@ main() {
         shell|bash)
             # Interactive shell for debugging
             log_info "Starting interactive shell..."
-            # Apply safety restrictions in shell mode too
-            setup_git_push_restrictions
+            # Apply network restrictions in shell mode too
             setup_network_restrictions
             drop_privileges /bin/bash
             ;;
@@ -447,9 +367,6 @@ main() {
 
             # SAFETY: Check we're not on a protected branch
             check_branch_protection
-
-            # SAFETY: Restrict git push
-            setup_git_push_restrictions
 
             # SAFETY: Restrict network
             setup_network_restrictions

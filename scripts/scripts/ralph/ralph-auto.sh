@@ -22,7 +22,6 @@
 #   --skip-commit        Don't prompt to create commit after completion
 #   --auto-commit        Automatically commit changes (no prompt)
 #   --commit-msg MSG     Commit message (requires --auto-commit)
-#   --name NAME          Instance name for parallel execution (default: auto-detected)
 #   -h, --help           Show this help message
 #
 
@@ -56,7 +55,6 @@ SKIP_CHECKS="false"
 SKIP_COMMIT="false"
 AUTO_COMMIT="false"
 COMMIT_MSG=""
-INSTANCE_NAME=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -93,10 +91,6 @@ while [[ $# -gt 0 ]]; do
             COMMIT_MSG="$2"
             shift 2
             ;;
-        --name)
-            INSTANCE_NAME="$2"
-            shift 2
-            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo ""
@@ -109,7 +103,6 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-commit        Don't prompt to create commit"
             echo "  --auto-commit        Automatically commit changes"
             echo "  --commit-msg MSG     Commit message (requires --auto-commit)"
-            echo "  --name NAME          Instance name for parallel execution"
             exit 0
             ;;
         *)
@@ -173,10 +166,6 @@ run_ralph() {
 
     if [ "$FRESH" = "true" ]; then
         args+=("--fresh")
-    fi
-
-    if [ -n "$INSTANCE_NAME" ]; then
-        args+=("--name" "$INSTANCE_NAME")
     fi
 
     log_info "Running: $RALPH_DOCKER_SCRIPT ${args[@]}"
