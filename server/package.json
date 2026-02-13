@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
     "ngrok": "ngrok http ${PORT:-3000}",
-    "inspect": "npx @modelcontextprotocol/inspector"
+    "inspect": "npx @modelcontextprotocol/inspector",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
