@@ -1,2 +1,2 @@
 // Barrel export for services
-export {};
+export { ApiClient, createApiClient } from "./api-client.js";
