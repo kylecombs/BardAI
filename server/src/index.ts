@@ -9,7 +9,7 @@ const widgetHtml = readFileSync("../web/dist/index.html", "utf8");
 
 // ---- Define your app state ----
 // (replace with your actual domain logic)
-let items: { id: string; name: string }[] = [];
+const items: { id: string; name: string }[] = [];
 
 function createAppServer() {
   const server = new McpServer({ name: "my-app", version: "0.1.0" });
