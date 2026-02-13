@@ -21,7 +21,6 @@
 #   --setup-db        Setup test database before running
 #   --fresh           Remove volumes and start fresh
 #   --worktree NAME   Run in a worktree (.worktrees/NAME directory)
-#   --name NAME       Instance name for parallel execution (default: auto-detected from worktree or "default")
 #
 
 set -e
@@ -49,7 +48,6 @@ INSTALL_DEPS="false"
 SETUP_DB="false"
 FRESH="false"
 WORKTREE=""
-INSTANCE_NAME=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -78,10 +76,6 @@ while [[ $# -gt 0 ]]; do
             WORKTREE="$2"
             shift 2
             ;;
-        --name)
-            INSTANCE_NAME="$2"
-            shift 2
-            ;;
         -h|--help)
             echo "Usage: $0 [command] [options]"
             echo ""
@@ -100,7 +94,6 @@ while [[ $# -gt 0 ]]; do
             echo "  --setup-db        Setup test database first"
             echo "  --fresh           Clean slate (removes volumes)"
             echo "  --worktree NAME   Run in a worktree (.worktrees/NAME directory)"
-            echo "  --name NAME       Instance name for parallel execution (default: auto-detected)"
             exit 0
             ;;
         *)
@@ -144,34 +137,6 @@ check_credentials() {
 get_host_ids() {
     export HOST_UID=$(id -u)
     export HOST_GID=$(id -g)
-}
-
-# Resolve the instance name for parallel execution
-resolve_instance_name() {
-    if [ -n "$INSTANCE_NAME" ]; then
-        # Use explicitly provided name
-        export RALPH_INSTANCE_NAME="$INSTANCE_NAME"
-    elif [ -n "$WORKTREE" ]; then
-        # Use worktree name
-        export RALPH_INSTANCE_NAME="$WORKTREE"
-    elif [ -f "$PROJECT_ROOT/.git" ]; then
-        # Auto-detect from current worktree
-        export RALPH_INSTANCE_NAME=$(basename "$PROJECT_ROOT")
-    else
-        # Default instance
-        export RALPH_INSTANCE_NAME="default"
-    fi
-
-    # Sanitize name for docker (lowercase, alphanumeric and hyphens only)
-    RALPH_INSTANCE_NAME=$(echo "$RALPH_INSTANCE_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
-    export RALPH_INSTANCE_NAME
-
-    log_info "Instance name: $RALPH_INSTANCE_NAME"
-}
-
-# Get docker compose command with project name for isolation
-docker_compose() {
-    docker compose -p "ralph-${RALPH_INSTANCE_NAME}" "$@"
 }
 
 # Find the main git repo root (handles worktrees)
@@ -232,8 +197,7 @@ do_build() {
     cd "$DOCKER_DIR"
 
     get_host_ids
-    resolve_instance_name
-    docker_compose build --build-arg HOST_UID=$HOST_UID --build-arg HOST_GID=$HOST_GID
+    docker compose build --build-arg HOST_UID=$HOST_UID --build-arg HOST_GID=$HOST_GID
 
     log_success "Image built successfully"
 }
@@ -243,10 +207,10 @@ do_clean() {
     log_info "Cleaning up Ralph Docker environment..."
     cd "$DOCKER_DIR"
 
-    resolve_instance_name
-    docker_compose down -v --remove-orphans 2>/dev/null || true
+    docker compose down -v --remove-orphans 2>/dev/null || true
+    docker rmi ralph-sandbox 2>/dev/null || true
 
-    log_success "Cleanup complete for instance: $RALPH_INSTANCE_NAME"
+    log_success "Cleanup complete"
 }
 
 # Run Ralph in the container
@@ -257,11 +221,10 @@ do_run() {
     check_credentials
     get_host_ids
     resolve_project_root
-    resolve_instance_name
 
     if [ "$FRESH" = "true" ]; then
         log_info "Fresh start requested, cleaning volumes..."
-        docker_compose down -v 2>/dev/null || true
+        docker compose down -v 2>/dev/null || true
     fi
 
     export RALPH_MAX_ITERATIONS="$MAX_ITERATIONS"
@@ -281,7 +244,7 @@ do_run() {
     log_info "Main repo .git exists: $([ -d "$RALPH_MAIN_REPO_ROOT/.git" ] && echo 'yes' || echo 'no')"
 
     # Start services and run Ralph
-    docker_compose up --build ralph
+    docker compose up --build ralph
 }
 
 # Open interactive shell
@@ -292,13 +255,12 @@ do_shell() {
     check_credentials
     get_host_ids
     resolve_project_root
-    resolve_instance_name
 
     # Start dependencies first
-    docker_compose up -d postgres redis
+    docker compose up -d postgres redis
 
     # Run shell
-    docker_compose run --rm ralph shell
+    docker compose run --rm ralph shell
 }
 
 # Run tests
@@ -308,9 +270,8 @@ do_test() {
 
     get_host_ids
     resolve_project_root
-    resolve_instance_name
 
-    docker_compose run --rm \
+    docker compose run --rm \
         -e RALPH_INSTALL_DEPS="$INSTALL_DEPS" \
         -e RALPH_SETUP_DB="$SETUP_DB" \
         ralph test
@@ -329,10 +290,9 @@ do_login() {
         cd "$DOCKER_DIR"
         get_host_ids
         resolve_project_root
-        resolve_instance_name
 
         # Run login with writable credential mount
-        docker_compose run --rm \
+        docker compose run --rm \
             -v "$HOME/.claude:/home/ralph/.claude:rw" \
             ralph login
     fi
@@ -341,8 +301,7 @@ do_login() {
 # Show logs
 do_logs() {
     cd "$DOCKER_DIR"
-    resolve_instance_name
-    docker_compose logs -f ralph
+    docker compose logs -f ralph
 }
 
 # Main

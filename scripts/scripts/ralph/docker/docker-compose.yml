@@ -17,7 +17,7 @@ services:
         HOST_GID: ${HOST_GID:-1000}
         NODE_VERSION: "22"
         RUBY_VERSION: "3.1.6"
-    # No hardcoded container_name - allows parallel execution via docker compose -p <project>
+    container_name: ralph-sandbox
     stdin_open: true
     tty: true
     working_dir: /workspace
@@ -34,8 +34,7 @@ services:
       # Mount main repo's .git directory at its original path for worktree support
       # Worktrees have a .git file with an absolute path to the main repo's .git/worktrees/<name>
       # This mount ensures that path is valid inside the container
-      # Read-write is needed for commits; push restrictions are enforced via pre-push hook
-      - ${RALPH_MAIN_REPO_ROOT:-.}/.git:${RALPH_MAIN_REPO_ROOT:-.}/.git:rw
+      - ${RALPH_MAIN_REPO_ROOT:-.}/.git:${RALPH_MAIN_REPO_ROOT:-.}/.git:ro
 
       # Mount Claude credentials from host (read-write needed for debug logs)
       - ~/.claude:/home/ralph/.claude:rw
@@ -98,6 +97,7 @@ services:
   # PostgreSQL for API tests
   postgres:
     image: postgres:15-alpine
+    container_name: ralph-postgres
     environment:
       - POSTGRES_USER=ralph
       - POSTGRES_PASSWORD=ralph
@@ -115,6 +115,7 @@ services:
   # Redis for Sidekiq/caching
   redis:
     image: redis:7-alpine
+    container_name: ralph-redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
