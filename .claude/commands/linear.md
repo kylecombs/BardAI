@@ -36,13 +36,16 @@ If the issue is not found, inform the user and stop.
 
 ## Step 2: Create Worktree
 
-Run the worktree creation command with the Linear-generated branch name:
+Run the worktree creation command with the Linear-generated branch name and the `--bard` flag to run project setup:
 
 ```bash
-wt create <branch-name>
+wt create <branch-name> --bard
 ```
 
-The `wt` command should output the path to the new worktree directory.
+The `wt` command will:
+1. Create the worktree at `.worktrees/<branch-name>`
+2. Copy `.env` files from `web/` and `server/` directories
+3. Run `npm install` in both `web/` and `server/`
 
 ---
 
@@ -122,8 +125,9 @@ User: /linear ENG-123
    - Branch: "eng-123-add-user-authentication"
 
 2. Create worktree
-   $ wt create eng-123-add-user-authentication
+   $ wt create eng-123-add-user-authentication --bard
    Created worktree at /path/to/worktrees/eng-123-add-user-authentication
+   (runs npm install in web/ and server/)
 
 3. Change directory
    $ cd /path/to/worktrees/eng-123-add-user-authentication
